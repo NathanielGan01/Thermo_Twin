@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThermoTwin AI – HVAC Waste Heat Recovery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --e:cubic-bezier(.22,1,.36,1);
+  --txt:#f1f5f9;--mut:rgba(226,232,240,.62);
+  --g:#34d399;--c:#22d3ee;--o:#fb923c;--r:#fb7185;
+  --line:rgba(255,255,255,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);background:#070b14;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+
+/* animated backdrop */
+.bg{position:fixed;inset:0;overflow:hidden;z-index:0}
+.bg i{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;will-change:transform;animation:drift 22s ease-in-out infinite alternate}
+.bg i:nth-child(1){width:46vw;height:46vw;left:-10vw;top:-12vw;background:radial-gradient(circle,#10b981,transparent 65%)}
+.bg i:nth-child(2){width:42vw;height:42vw;right:-8vw;top:10vh;background:radial-gradient(circle,#0ea5e9,transparent 65%);animation-duration:28s;animation-delay:-8s}
+.bg i:nth-child(3){width:38vw;height:38vw;left:25vw;bottom:-16vw;background:radial-gradient(circle,#f97316,transparent 65%);opacity:.32;animation-duration:32s;animation-delay:-14s}
+@keyframes drift{to{transform:translate3d(6vw,5vh,0) scale(1.15)}}
+.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(3,6,14,.65))}
+
+/* glass */
+.glass{background:linear-gradient(135deg,rgba(255,255,255,.13),rgba(255,255,255,.04));
+  -webkit-backdrop-filter:blur(22px) saturate(165%);backdrop-filter:blur(22px) saturate(165%);
+  border:1px solid var(--line);border-radius:22px;
+  box-shadow:0 12px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25)}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--txt)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--g);box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:ping 2s infinite}
+.dot.off{background:var(--o);animation:none}
+@keyframes ping{70%{box-shadow:0 0 0 9px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
+
+/* top bar */
+.top{position:fixed;z-index:20;left:20px;right:20px;top:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.06em;font-size:13px}
+.logo{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--g),var(--c));color:#04202a;font-size:15px}
+.tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:inline-flex;padding:3px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--line)}
+.seg button{padding:6px 12px;border-radius:9px;font-size:12px;font-weight:600;color:var(--mut);transition:background .3s var(--e),color .3s}
+.seg button.on{background:rgba(255,255,255,.18);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.btn{padding:8px 16px;border-radius:12px;font-size:12px;font-weight:700;background:rgba(255,255,255,.1);border:1px solid var(--line);transition:transform .25s var(--e),background .25s}
+.btn:hover{background:rgba(255,255,255,.18);transform:translateY(-1px)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:linear-gradient(135deg,rgba(52,211,153,.9),rgba(34,211,238,.9));color:#032028;border-color:transparent}
+.mono{font-variant-numeric:tabular-nums}
+
+/* deck */
+.deck{position:fixed;inset:0;z-index:1}
+.slide{position:absolute;inset:0;padding:96px 28px 84px;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;
+  opacity:0;visibility:hidden;transform:translate3d(48px,0,0) scale(.985);
+  transition:opacity .6s var(--e),transform .7s var(--e),visibility 0s .7s}
+.slide.before{transform:translate3d(-48px,0,0) scale(.985)}
+.slide.active{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+.wrap{width:100%;max-width:1200px;margin:0 auto}
+.rv{opacity:0;transform:translate3d(0,22px,0);transition:opacity .7s var(--e),transform .8s var(--e)}
+.slide.active .rv{opacity:1;transform:none;transition-delay:calc(var(--i,0)*80ms + 160ms)}
+h1{font-size:clamp(34px,6vw,72px);line-height:1.04;font-weight:800;letter-spacing:-.03em}
+h2{font-size:clamp(26px,3.6vw,44px);line-height:1.1;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.grad{background:linear-gradient(120deg,var(--g),var(--c) 55%,#a5b4fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--mut);font-size:clamp(14px,1.4vw,18px);line-height:1.6;max-width:640px}
+.eyebrow{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--c);font-weight:700;margin-bottom:12px}
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:1.6fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.pad{padding:22px}
+.lbl{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);font-weight:600}
+.big{font-size:clamp(26px,3vw,40px);font-weight:800;letter-spacing:-.02em;margin-top:6px}
+.big small{font-size:14px;font-weight:600;color:var(--mut);margin-left:4px}
+.kpi{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.07);border:1px solid var(--line)}
+
+/* bars */
+.bar{margin-top:14px}
+.bar .row{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px}
+.track{height:14px;border-radius:99px;background:rgba(0,0,0,.28);overflow:hidden}
+.fill{height:100%;border-radius:99px;width:0;transition:width 1s var(--e)}
+.fill.b{background:linear-gradient(90deg,#f97316,#fb7185)}.fill.w{background:linear-gradient(90deg,#fbbf24,#fb923c)}
+
+/* diagram */
+svg{display:block;width:100%;height:auto}
+.pipe{fill:none;stroke-width:6;stroke-linecap:round;opacity:.22;transition:opacity .5s}
+.pipe.flow{opacity:1;stroke-dasharray:9 9;animation:flow .9s linear infinite}
+.pipe.rev.flow{animation-direction:reverse}
+@keyframes flow{to{stroke-dashoffset:-18}}
+.node{fill:rgba(255,255,255,.08);stroke:rgba(255,255,255,.28);stroke-width:1.5}
+.t{fill:#e2e8f0;font-size:12px;font-weight:600;font-family:inherit}
+.t2{fill:rgba(226,232,240,.6);font-size:10.5px;font-family:inherit}
+.tv{fill:#fff;font-size:15px;font-weight:700;font-family:inherit}
+.valve{cursor:pointer;--vc:var(--g)}
+.valve.closed{--vc:var(--r)}
+.valve circle{fill:rgba(7,11,20,.7);stroke:var(--vc);stroke-width:2;transition:stroke .4s}
+.valve polygon{fill:var(--vc);transition:fill .4s}
+.valve .st{fill:var(--vc);font-size:9.5px;font-weight:700;font-family:inherit;transition:fill .4s}
+.valve g{transition:transform .3s var(--e);transform-box:fill-box;transform-origin:center}
+.valve:hover g{transform:scale(1.18)}
+.vbtn{display:flex;align-items:center;justify-content:space-between;width:100%;padding:11px 14px;border-radius:14px;font-size:12.5px;font-weight:600;
+  background:rgba(255,255,255,.07);border:1px solid var(--line);transition:background .3s,border-color .3s,transform .25s var(--e);--vc:var(--g)}
+.vbtn.closed{--vc:var(--r)}
+.vbtn:hover{transform:translateX(3px);background:rgba(255,255,255,.12)}
+.vbtn b{color:var(--vc);font-size:11px;letter-spacing:.08em;transition:color .3s}
+.vbtn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--vc);margin-right:10px;box-shadow:0 0 10px var(--vc);transition:background .3s}
+.vbtn span{flex:1}
+
+/* controls */
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid var(--line);font-size:13px;font-weight:600}
+.sw input{display:none}
+.sw .tg{width:44px;height:26px;border-radius:99px;background:rgba(255,255,255,.18);position:relative;transition:background .35s var(--e);flex:none}
+.sw .tg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .35s var(--e);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.sw input:checked+.tg{background:var(--g)}
+.sw input:checked+.tg::after{transform:translateX(18px)}
+.sl{margin-top:18px}
+.sl .row{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:10px}
+.sl .row output{color:var(--c)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.18);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 10px rgba(0,0,0,.4),0 0 0 5px rgba(34,211,238,.25);transition:box-shadow .25s}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 10px rgba(0,0,0,.4),0 0 0 5px rgba(34,211,238,.25)}
+input[type=range]:active::-webkit-slider-thumb{box-shadow:0 2px 10px rgba(0,0,0,.4),0 0 0 9px rgba(34,211,238,.3)}
+canvas{width:100%;height:100%;display:block}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--mut);flex-wrap:wrap}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* nav */
+.nav{position:fixed;z-index:20;left:50%;bottom:20px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:8px 10px;border-radius:999px}
+.nav .arr{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.1);transition:background .25s,transform .25s var(--e),opacity .25s;font-size:16px}
+.nav .arr:hover{background:rgba(255,255,255,.2);transform:scale(1.08)}
+.nav .arr:disabled{opacity:.3;pointer-events:none}
+.dots{display:flex;gap:8px;align-items:center}
+.dots button{width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.3);transition:width .5s var(--e),background .4s}
+.dots button.on{width:28px;background:linear-gradient(90deg,var(--g),var(--c))}
+.cnt{font-size:12px;color:var(--mut);min-width:42px;text-align:center}
+.prog{position:fixed;z-index:30;left:0;top:0;height:3px;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,var(--g),var(--c));transition:transform .7s var(--e)}
+
+@media(max-width:900px){
+  .g2,.g3{grid-template-columns:1fr}.g4{grid-template-columns:1fr 1fr}
+  .slide{justify-content:flex-start;padding-top:128px}
+  .top{left:10px;right:10px;top:10px}.brand span{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+<div class="bg"><i></i><i></i><i></i></div>
+<div class="prog" id="prog"></div>
+
+<header class="top glass">
+  <div class="brand"><div class="logo">⚡</div><span>THERMO-TWIN AI</span></div>
+  <div class="tools">
+    <div class="chip"><span class="dot" id="aiDot"></span><span id="aiTxt">AI valves active</span></div>
+    <div class="chip mono">🕒 <span id="clock">12:00 PM</span></div>
+    <button class="btn" id="play">❚❚ Pause</button>
+    <div class="seg" id="speed"><button data-s="1">1x</button><button data-s="10" class="on">10x</button><button data-s="60">60x</button></div>
+    <button class="btn" id="fs" title="Fullscreen (F)">⛶</button>
+  </div>
+</header>
+
+<main class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide">
+  <div class="wrap">
+    <div class="rv eyebrow">Digital Twin · Smart Buildings</div>
+    <h1 class="rv">Turning AC waste heat<br>into <span class="grad">free hot water</span></h1>
+    <p class="rv lead" style="margin-top:22px">An AI-controlled digital twin that captures the heat a hotel's air-conditioning throws away and uses it to pre-heat water, cutting boiler energy, cost and carbon.</p>
+    <div class="rv" style="margin-top:28px;display:flex;gap:10px;flex-wrap:wrap">
+      <span class="chip">🏨 Grand Azure Hotel · 120 rooms</span><span class="chip">🧠 AI valve orchestration</span><span class="chip">🔬 Live physics model</span>
+    </div>
+    <div class="rv" style="margin-top:34px"><button class="btn pri" data-go="1" style="padding:13px 26px;font-size:14px">Start presentation →</button></div>
+  </div>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="slide">
+  <div class="wrap">
+    <div class="rv eyebrow">The problem</div>
+    <h2 class="rv">Two systems working <span class="grad">against each other</span></h2>
+    <p class="rv lead">Every day the AC dumps heat outside while a boiler burns energy to heat water. Switch the view to see what happens when we connect them.</p>
+    <div class="grid g2" style="margin-top:26px">
+      <div class="rv glass pad">
+        <div class="seg" id="mode"><button data-m="0" class="on">Traditional boiler</button><button data-m="1">Heat recovery + AI</button></div>
+        <div class="bar"><div class="row"><span>🔥 Boiler energy needed</span><b class="mono"><span id="bBoil">0</span> kWh/day</b></div><div class="track"><div class="fill b" id="fBoil"></div></div></div>
+        <div class="bar"><div class="row"><span>♨️ Waste heat dumped outside</span><b class="mono"><span id="bDump">0</span> kWh/day</b></div><div class="track"><div class="fill w" id="fDump"></div></div></div>
+        <p class="lbl" style="margin-top:22px">Estimated from the model using the settings in slide 4</p>
+      </div>
+      <div class="grid" style="align-content:start">
+        <div class="rv kpi"><div class="lbl">Energy saved per day</div><div class="big"><span id="sKwh">0</span><small>kWh</small></div></div>
+        <div class="rv kpi"><div class="lbl">Boiler load reduction</div><div class="big"><span id="sPct">0</span><small>%</small></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 DIGITAL TWIN -->
+<section class="slide">
+  <div class="wrap">
+    <div class="rv eyebrow">The digital twin</div>
+    <h2 class="rv">Click a valve. <span class="grad">Watch the system react.</span></h2>
+    <div class="grid g2" style="margin-top:18px">
+      <div class="rv glass pad" style="padding:14px">
+        <svg viewBox="0 0 900 380" role="img" aria-label="HVAC heat recovery system diagram">
+          <defs>
+            <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+            <clipPath id="tankClip"><rect x="650" y="40" width="130" height="170" rx="22"/></clipPath>
+          </defs>
+          <!-- pipes -->
+          <path id="pAC" class="pipe" d="M215 100H340" stroke="#fb923c"/>
+          <path id="pDump" class="pipe" d="M278 100V28" stroke="#fb7185"/>
+          <path id="pCold" class="pipe" d="M30 330H420V160" stroke="#38bdf8"/>
+          <path id="pHX" class="pipe" d="M495 100H650" stroke="#fbbf24"/>
+          <path id="pTank" class="pipe" d="M715 210V255" stroke="#f59e0b"/>
+          <path id="pOut" class="pipe flow" d="M780 300H880" stroke="#ef4444"/>
+          <!-- nodes -->
+          <rect class="node" x="60" y="40" width="155" height="120" rx="22"/>
+          <g id="fan" transform="translate(137 88)"><circle r="22" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/><path d="M0 0L0-18M0 0L16 9M0 0L-16 9" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/></g>
+          <text class="t" x="137" y="136" text-anchor="middle">AC / Chiller</text>
+          <text class="tv" id="tGas" x="137" y="154" text-anchor="middle" style="display:none"></text>
+          <rect class="node" x="340" y="40" width="155" height="120" rx="22"/>
+          <text class="t" x="417" y="80" text-anchor="middle">Heat Exchanger</text>
+          <text class="t2" x="417" y="98" text-anchor="middle">Water outlet</text>
+          <text class="tv" id="tHx" x="417" y="126" text-anchor="middle">–</text>
+          <rect class="node" x="650" y="40" width="130" height="170" rx="22"/>
+          <g clip-path="url(#tankClip)"><rect id="tankW" x="650" y="100" width="130" height="110" fill="url(#wg)" opacity=".55"/></g>
+          <text class="t" x="715" y="68" text-anchor="middle">Thermal Tank</text>
+          <text class="tv" id="tTank" x="715" y="155" text-anchor="middle">–</text>
+          <rect class="node" id="boilBox" x="650" y="255" width="130" height="90" rx="22"/>
+          <text class="t" x="715" y="285" text-anchor="middle">Aux Boiler</text>
+          <text class="tv" id="tBoil" x="715" y="315" text-anchor="middle">–</text>
+          <text class="t2" x="830" y="288" text-anchor="middle">Hot supply</text>
+          <text class="tv" id="tSup" x="830" y="325" text-anchor="middle">–</text>
+          <text class="t2" x="90" y="318">Cold inlet</text>
+          <text class="tv" id="tCold" x="90" y="352">–</text>
+          <text class="t2" x="278" y="16" text-anchor="middle">Dump</text>
+          <!-- valves -->
+          <g class="valve" data-v="v1" transform="translate(220 330)" tabindex="0" role="button" aria-label="Valve 1"><g><circle r="19"/><polygon points="-10,-8 0,0 -10,8"/><polygon points="10,-8 0,0 10,8"/></g><text class="t2" y="-27" text-anchor="middle">V1 Cold in</text><text class="st" y="36" text-anchor="middle">OPEN</text></g>
+          <g class="valve" data-v="v2" transform="translate(572 100)" tabindex="0" role="button" aria-label="Valve 2"><g><circle r="19"/><polygon points="-10,-8 0,0 -10,8"/><polygon points="10,-8 0,0 10,8"/></g><text class="t2" y="-27" text-anchor="middle">V2 Pre-heat</text><text class="st" y="36" text-anchor="middle">OPEN</text></g>
+          <g class="valve" data-v="v3" transform="translate(278 62)" tabindex="0" role="button" aria-label="Valve 3"><g><circle r="19"/><polygon points="-10,-8 0,0 -10,8"/><polygon points="10,-8 0,0 10,8"/></g><text class="t2" x="-30" y="-2" text-anchor="end">V3 Bypass</text><text class="st" x="-30" y="12" text-anchor="end">CLOSED</text></g>
+          <g class="valve" data-v="v4" transform="translate(715 232)" tabindex="0" role="button" aria-label="Valve 4"><g><circle r="19"/><polygon points="-10,-8 0,0 -10,8"/><polygon points="10,-8 0,0 10,8"/></g><text class="t2" x="-30" y="-2" text-anchor="end">V4 Tank out</text><text class="st" x="-30" y="12" text-anchor="end">OPEN</text></g>
+        </svg>
+      </div>
+      <div class="grid" style="align-content:start;gap:12px">
+        <div class="rv glass pad" style="padding:16px">
+          <div class="lbl" style="margin-bottom:10px">Valve control</div>
+          <div class="grid" style="gap:8px">
+            <button class="vbtn" data-v="v1"><span>V1 · Cold water inlet</span><b>OPEN</b></button>
+            <button class="vbtn" data-v="v2"><span>V2 · Recovery pre-heat</span><b>OPEN</b></button>
+            <button class="vbtn" data-v="v3"><span>V3 · Condenser bypass</span><b>CLOSED</b></button>
+            <button class="vbtn" data-v="v4"><span>V4 · Tank outlet</span><b>OPEN</b></button>
+          </div>
+          <label class="sw" style="margin-top:12px">Dynamic AI orchestration<input type="checkbox" class="aiBox" checked><span class="tg"></span></label>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+          <div class="rv kpi"><div class="lbl">Recovered</div><div class="big"><span id="kRec">0</span><small>kW</small></div></div>
+          <div class="rv kpi"><div class="lbl">Boiler draw</div><div class="big"><span id="kBoil">0</span><small>kW</small></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 OPTIMIZATION -->
+<section class="slide">
+  <div class="wrap">
+    <div class="rv eyebrow">AI optimization</div>
+    <h2 class="rv">Adjust the hotel. <span class="grad">See the savings move.</span></h2>
+    <div class="grid" style="grid-template-columns:minmax(260px,1fr) 2fr;margin-top:18px" id="g4">
+      <div class="rv glass pad">
+        <div class="sl" style="margin-top:0"><div class="row"><span>Outdoor temperature</span><output id="oOut">34°C</output></div><input type="range" id="rOut" min="22" max="42" step="1" value="34"></div>
+        <div class="sl"><div class="row"><span>Hotel occupancy</span><output id="oOcc">85%</output></div><input type="range" id="rOcc" min="20" max="100" step="1" value="85"></div>
+        <div class="sl"><div class="row"><span>Cold inlet temperature</span><output id="oCold">15.0°C</output></div><input type="range" id="rCold" min="8" max="28" step="0.5" value="15"></div>
+        <label class="sw" style="margin-top:22px">AI valve orchestration<input type="checkbox" class="aiBox" checked><span class="tg"></span></label>
+        <p class="lbl" style="margin-top:16px;line-height:1.6">Tank safety rule: above 78 °C the AI opens the bypass valve and closes pre-heat.</p>
+      </div>
+      <div class="rv glass pad" style="display:flex;flex-direction:column;min-height:360px">
+        <div class="legend" style="margin-bottom:10px"><span><i style="background:#fb7185"></i>Traditional boiler (kW)</span><span><i style="background:#34d399"></i>With heat recovery + AI (kW)</span><span><i style="background:#fff"></i>Simulation time</span></div>
+        <div style="flex:1;min-height:280px"><canvas id="cv"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 IMPACT -->
+<section class="slide">
+  <div class="wrap">
+    <div class="rv eyebrow">The impact</div>
+    <h2 class="rv">Savings that <span class="grad">add up in real time</span></h2>
+    <p class="rv lead">The counters below grow while the simulation runs. Projections use today's slider settings.</p>
+    <div class="grid g4" style="margin-top:26px">
+      <div class="rv glass pad"><div class="lbl">Cost saved (live)</div><div class="big grad">RM <span id="iCost">0</span></div></div>
+      <div class="rv glass pad"><div class="lbl">CO₂ avoided (live)</div><div class="big grad"><span id="iCo2">0</span><small>kg</small></div></div>
+      <div class="rv glass pad"><div class="lbl">Projected per year</div><div class="big">RM <span id="iYr">0</span></div></div>
+      <div class="rv glass pad"><div class="lbl">Projected CO₂ / year</div><div class="big"><span id="iYrCo2">0</span><small>tonnes</small></div></div>
+    </div>
+    <div class="grid g3" style="margin-top:18px">
+      <div class="rv glass pad"><b>♻️ Reuse, don't reject</b><p class="lead" style="font-size:14px;margin-top:8px">Heat the AC would exhaust now pre-heats the hot water supply.</p></div>
+      <div class="rv glass pad"><b>🧠 Safe automation</b><p class="lead" style="font-size:14px;margin-top:8px">Valve logic protects the tank and falls back to the boiler when needed.</p></div>
+      <div class="rv glass pad"><b>🔬 Test before you build</b><p class="lead" style="font-size:14px;margin-top:8px">The digital twin lets owners try scenarios with zero hardware risk.</p></div>
+    </div>
+    <p class="rv lbl" style="margin-top:18px">Assumptions: electricity RM 0.18/kWh · grid factor 0.42 kg CO₂/kWh · 120-room hotel model</p>
+  </div>
+</section>
+</main>
+
+<nav class="nav glass">
+  <button class="arr" id="prev" aria-label="Previous">‹</button>
+  <div class="dots" id="dots"></div>
+  <span class="cnt mono" id="cnt">1 / 5</span>
+  <button class="arr" id="next" aria-label="Next">›</button>
+</nav>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+
+/* ---------- state & physics ---------- */
+const S={run:true,speed:10,min:720,out:34,occ:85,cold:15,ai:true,v:{v1:1,v2:1,v3:0,v4:1},
+  cool:0,gas:85,lpm:0,rec:0,hx:48,tank:62.4,boiler:0,base:0,supply:60,cost:148.5,co2:214,fan:0};
+const coolF=h=>{let f=h<7||h>22?.12:Math.max(.1,Math.sin((h-7)*Math.PI/10));return f*100*Math.max(.6,(S.out-18)/16)*(S.occ/80)};
+const waterF=h=>{let f=.15;if(h>=6&&h<=10)f=.85+Math.sin((h-6)*Math.PI/4)*.15;else if(h>=18&&h<=23)f=.9+Math.sin((h-18)*Math.PI/5)*.1;else if(h>10&&h<18)f=.3+Math.sin((h-10)*Math.PI/8)*.15;return f*50*S.occ/100};
+function step(dm){
+  const h=S.min/60;
+  S.cool=coolF(h);S.gas=70+S.cool/120*22+(S.out-30)*.5;S.lpm=waterF(h);
+  if(S.ai){if(S.tank>78){S.v.v2=0;S.v.v3=1}else{S.v.v2=1;S.v.v3=0}S.v.v1=1;S.v.v4=1}
+  S.rec=(S.v.v1&&S.v.v2)?S.cool*.45*.88:0;
+  S.hx=S.rec>0&&S.lpm>0?Math.min(75,S.cold+S.rec*60/(S.lpm*4.184)):S.cold;
+  const out=S.v.v4?S.lpm*4.184*(S.tank-S.cold)/60:0; // no draw from the tank while V4 is closed
+  S.tank=clamp(S.tank+((S.rec-out)*dm*60)/(3000*4.184),S.cold,82);
+  S.base=S.lpm*4.184*(60-S.cold)/60;
+  if(S.v.v4){S.boiler=S.lpm*4.184*Math.max(0,60-S.tank)/60;S.supply=Math.max(60,S.tank)}else{S.boiler=S.base;S.supply=60}
+  if(S.ai){const k=Math.max(0,S.base-S.boiler),hr=dm/60;S.cost+=k*.18*hr;S.co2+=k*.42*hr}
+}
+/* 24h estimate for the chart & summary numbers */
+let D={};
+function daily(){
+  const b=[],a=[];let B=0,A=0,R=0;
+  for(let h=0;h<24;h++){
+    const m=h+.5,c=coolF(m),w=waterF(m),base=w*4.184*(60-S.cold)/60,ai=Math.max(0,base-c*.45*.88);
+    b.push(base);a.push(ai);B+=base;A+=ai;R+=c;
+  }
+  const used=B-A;D={b,a,base:B,ai:A,rej:R,rejAfter:Math.max(0,R-used),save:used,pct:B?used/B*100:0};
+}
+
+/* ---------- smooth number binding ---------- */
+const B=[];
+function bind(sel,get,d=0,pre=''){B.push({el:$(sel),get,d,pre,v:get(),t:''})}
+let mode=0;
+bind('#bBoil',()=>mode?D.ai:D.base);bind('#bDump',()=>mode?D.rejAfter:D.rej);
+bind('#sKwh',()=>D.save);bind('#sPct',()=>D.pct);
+bind('#kRec',()=>S.rec,1);bind('#kBoil',()=>S.boiler,1);
+bind('#iCost',()=>S.cost,2);bind('#iCo2',()=>S.co2);
+bind('#iYr',()=>D.save*.18*365);bind('#iYrCo2',()=>D.save*.42*365/1000,1);
+const fmt=n=>n.toLocaleString('en-US');
+
+/* ---------- cached DOM writer ---------- */
+function W(el,k,v){const c=el._c||(el._c={});if(c[k]!==v){c[k]=v;k==='text'?el.textContent=v:el.setAttribute(k,v)}}
+function T(el,cls,on){const c=el._c||(el._c={}),k='c'+cls;if(c[k]!==on){c[k]=on;el.classList.toggle(cls,on)}}
+
+const vNames={v1:'V1',v2:'V2',v3:'V3',v4:'V4'};
+const els={fan:$('#fan'),tGas:$('#tGas'),tHx:$('#tHx'),tTank:$('#tTank'),tBoil:$('#tBoil'),tSup:$('#tSup'),tCold:$('#tCold'),tankW:$('#tankW'),boilBox:$('#boilBox'),
+  pAC:$('#pAC'),pDump:$('#pDump'),pCold:$('#pCold'),pHX:$('#pHX'),pTank:$('#pTank'),pOut:$('#pOut'),clock:$('#clock'),aiDot:$('#aiDot'),aiTxt:$('#aiTxt')};
+const vG=Object.fromEntries($$('.valve').map(g=>[g.dataset.v,g]));
+const vB=Object.fromEntries($$('.vbtn').map(b=>[b.dataset.v,b]));
+
+function render(){
+  const m=Math.floor(S.min),hh=Math.floor(m/60),mm=m%60;
+  W(els.clock,'text',`${String(hh%12||12).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${hh>=12?'PM':'AM'}`);
+  W(els.tCold,'text',S.cold.toFixed(1)+'°C');W(els.tHx,'text',S.hx.toFixed(1)+'°C');
+  W(els.tTank,'text',S.tank.toFixed(1)+'°C');W(els.tSup,'text',S.supply.toFixed(1)+'°C');
+  W(els.tBoil,'text',S.boiler>5?`${S.boiler.toFixed(0)} kW`:'Standby');
+  const lvl=clamp((S.tank-8)/(82-8),.08,1),H=170*lvl;
+  W(els.tankW,'y',(210-H).toFixed(1));W(els.tankW,'height',H.toFixed(1));
+  W(els.tankW,'fill',`hsl(${clamp(200-(S.tank-30)*3.2,0,200).toFixed(0)} 90% 58%)`);
+  W(els.boilBox,'stroke',S.boiler>5?'#fb7185':'rgba(255,255,255,.28)');
+  const f=S.v;
+  T(els.pAC,'flow',true);T(els.pDump,'flow',!!f.v3);T(els.pCold,'flow',!!f.v1);
+  T(els.pHX,'flow',!!(f.v1&&f.v2));T(els.pTank,'flow',!!f.v4);
+  T(els.pCold,'rev',false);
+  for(const k in f){
+    const open=!!f[k];T(vG[k],'closed',!open);T(vB[k],'closed',!open);
+    W(vG[k].querySelector('.st'),'text',open?'OPEN':'CLOSED');W(vB[k].querySelector('b'),'text',open?'OPEN':'CLOSED');
+  }
+  W(els.aiTxt,'text',S.ai?'AI valves active':'Manual override');T(els.aiDot,'off',!S.ai);
+  $$('.aiBox').forEach(b=>{if(b.checked!==S.ai)b.checked=S.ai});
+}
+
+/* ---------- chart ---------- */
+const cv=$('#cv'),cx=cv.getContext('2d');let cw=0,ch=0,cb=Array(24).fill(0),ca=Array(24).fill(0);
+function sizeCv(){const d=devicePixelRatio||1;cw=cv.clientWidth;ch=cv.clientHeight;cv.width=cw*d;cv.height=ch*d;cx.setTransform(d,0,0,d,0,0)}
+new ResizeObserver(sizeCv).observe(cv.parentElement);
+function path(arr,x,y){cx.beginPath();arr.forEach((v,i)=>{const px=x(i),py=y(v);if(!i)cx.moveTo(px,py);else{const qx=(x(i-1)+px)/2,qy=(y(arr[i-1])+py)/2;cx.quadraticCurveTo(x(i-1),y(arr[i-1]),qx,qy)}});cx.lineTo(x(23),y(arr[23]))}
+function draw(k){
+  if(!cw)return;
+  let mx=1;for(let i=0;i<24;i++){cb[i]+=(D.b[i]-cb[i])*k;ca[i]+=(D.a[i]-ca[i])*k;mx=Math.max(mx,cb[i])}
+  mx=Math.ceil(mx*1.1/20)*20;
+  const L=44,R=14,Tp=10,Bt=26,pw=cw-L-R,ph=ch-Tp-Bt,x=i=>L+pw*i/23,y=v=>Tp+ph*(1-v/mx);
+  cx.clearRect(0,0,cw,ch);cx.font='11px Inter,system-ui,sans-serif';cx.fillStyle='rgba(226,232,240,.55)';cx.strokeStyle='rgba(255,255,255,.08)';cx.lineWidth=1;
+  for(let i=0;i<=4;i++){const v=mx*i/4,py=y(v);cx.beginPath();cx.moveTo(L,py);cx.lineTo(cw-R,py);cx.stroke();cx.textAlign='right';cx.fillText(Math.round(v),L-8,py+4)}
+  cx.textAlign='center';for(let h=0;h<24;h+=4)cx.fillText(String(h).padStart(2,'0')+':00',x(h),ch-8);
+  path(ca,x,y);cx.lineTo(x(23),y(0));cx.lineTo(x(0),y(0));cx.closePath();
+  const g=cx.createLinearGradient(0,Tp,0,Tp+ph);g.addColorStop(0,'rgba(52,211,153,.4)');g.addColorStop(1,'rgba(52,211,153,0)');cx.fillStyle=g;cx.fill();
+  path(cb,x,y);cx.setLineDash([6,6]);cx.strokeStyle='#fb7185';cx.lineWidth=2;cx.stroke();cx.setLineDash([]);
+  path(ca,x,y);cx.strokeStyle='#34d399';cx.lineWidth=3;cx.stroke();
+  const hp=S.min/60,px=L+pw*clamp(hp,0,23)/23;
+  cx.strokeStyle='rgba(255,255,255,.55)';cx.lineWidth=1.5;cx.beginPath();cx.moveTo(px,Tp);cx.lineTo(px,Tp+ph);cx.stroke();
+  const i0=Math.min(22,Math.floor(hp)),fr=hp-i0;
+  [[cb,'#fb7185'],[ca,'#34d399']].forEach(([a,c])=>{const v=a[i0]+(a[i0+1]-a[i0])*clamp(fr,0,1);cx.fillStyle=c;cx.strokeStyle='#fff';cx.lineWidth=2;cx.beginPath();cx.arc(px,y(v),5,0,7);cx.fill();cx.stroke()});
+}
+
+/* ---------- main loop ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(now-last,100);last=now;
+  if(S.run){const dm=dt/1000*S.speed/2;S.min=(S.min+dm)%1440;step(dm);S.fan=(S.fan+S.cool/10*dt/16)%360;els.fan.setAttribute('transform',`translate(137 88) rotate(${S.fan.toFixed(1)})`)}
+  const k=1-Math.exp(-dt/130);
+  for(const b of B){const t=b.get();b.v+=(t-b.v)*k;if(Math.abs(t-b.v)<.004)b.v=t;
+    const s=b.pre+(b.d?b.v.toFixed(b.d):fmt(Math.round(b.v)));if(s!==b.t){b.t=s;b.el.textContent=s}}
+  render();
+  if(cur===3)draw(k);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- controls ---------- */
+function setAI(on){S.ai=on}
+$$('.aiBox').forEach(b=>b.addEventListener('change',e=>setAI(e.target.checked)));
+function toggleValve(k){S.ai=false;S.v[k]=S.v[k]?0:1;if(S.v[k]&&k==='v2')S.v.v3=0}
+Object.entries(vG).forEach(([k,g])=>{g.addEventListener('click',()=>toggleValve(k));g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleValve(k)}})});
+Object.entries(vB).forEach(([k,b])=>b.addEventListener('click',()=>toggleValve(k)));
+$('#play').addEventListener('click',e=>{S.run=!S.run;e.currentTarget.textContent=S.run?'❚❚ Pause':'▶ Resume'});
+$('#speed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;S.speed=+b.dataset.s;$$('#speed button').forEach(x=>x.classList.toggle('on',x===b))});
+$('#mode').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;mode=+b.dataset.m;$$('#mode button').forEach(x=>x.classList.toggle('on',x===b));bars()});
+function bars(){const mx=Math.max(D.base,D.rej,1);$('#fBoil').style.width=((mode?D.ai:D.base)/mx*100)+'%';$('#fDump').style.width=((mode?D.rejAfter:D.rej)/mx*100)+'%'}
+function sliders(){
+  S.out=+$('#rOut').value;S.occ=+$('#rOcc').value;S.cold=+$('#rCold').value;
+  $('#oOut').textContent=S.out+'°C';$('#oOcc').textContent=S.occ+'%';$('#oCold').textContent=S.cold.toFixed(1)+'°C';
+  daily();bars();
+}
+['#rOut','#rOcc','#rCold'].forEach(s=>$(s).addEventListener('input',sliders));
+
+/* ---------- navigation ---------- */
+const slides=$$('.slide'),dots=$('#dots');let cur=0;
+slides.forEach((s,i)=>{s.querySelectorAll('.rv').forEach((r,j)=>r.style.setProperty('--i',j));
+  const d=document.createElement('button');d.setAttribute('aria-label','Slide '+(i+1));d.onclick=()=>go(i);dots.appendChild(d)});
+function go(i){
+  i=clamp(i,0,slides.length-1);cur=i;
+  slides.forEach((s,j)=>{s.classList.toggle('active',j===i);s.classList.toggle('before',j<i)});
+  [...dots.children].forEach((d,j)=>d.classList.toggle('on',j===i));
+  $('#cnt').textContent=`${i+1} / ${slides.length}`;
+  $('#prev').disabled=i===0;$('#next').disabled=i===slides.length-1;
+  $('#prog').style.transform=`scaleX(${(i+1)/slides.length})`;
+  history.replaceState(null,'','#'+(i+1));
+  if(i===3)requestAnimationFrame(sizeCv);
+}
+$('#prev').onclick=()=>go(cur-1);$('#next').onclick=()=>go(cur+1);
+$$('[data-go]').forEach(b=>b.onclick=()=>go(+b.dataset.go));
+addEventListener('keydown',e=>{
+  if(e.target.type==='range'&&e.key.startsWith('Arrow'))return;
+  if(['ArrowRight','PageDown'].includes(e.key))go(cur+1);
+  else if(['ArrowLeft','PageUp'].includes(e.key))go(cur-1);
+  else if(e.key==='Home')go(0);else if(e.key==='End')go(slides.length-1);
+  else if(e.key==='f'||e.key==='F')fs();
+});
+function fs(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen?.()}
+$('#fs').onclick=fs;
+let tx=0,ty=0,skip=false;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;skip=!!e.target.closest('input,svg,canvas')},{passive:true});
+addEventListener('touchend',e=>{if(skip)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*2)go(cur+(dx<0?1:-1))},{passive:true});
+
+/* ---------- init ---------- */
+daily();for(let i=0;i<24;i++){cb[i]=D.b[i];ca[i]=D.a[i]}
+B.forEach(b=>b.v=b.get());bars();
+go(Math.max(0,(parseInt(location.hash.slice(1))||1)-1));
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
